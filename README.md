@@ -25,9 +25,6 @@ Projeto acadêmico de uma aplicação web para controle de clientes e pedidos de
 
 ## Banco de dados
 
-O banco possui duas tabelas principais:
+O script de criação do banco está localizado em:
 
-- clientes
-- pedidos
-
-A tabela pedidos possui uma chave estrangeira para clientes.
+database/banco.sql
