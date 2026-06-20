@@ -6,6 +6,7 @@ import Link from "next/link";
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [pedidoEditando, setPedidoEditando] = useState(null);
 
   const [form, setForm] = useState({
     id_cliente: "",
@@ -21,19 +22,11 @@ export default function PedidosPage() {
   async function carregarPedidos() {
     try {
       const resposta = await fetch("http://localhost:3001/pedidos");
-
-      if (!resposta.ok) {
-        throw new Error("Erro na resposta da API de pedidos.");
-      }
-
       const dados = await resposta.json();
-
-      console.log("Pedidos recebidos:", dados);
 
       if (Array.isArray(dados)) {
         setPedidos(dados);
       } else {
-        console.error("A API não retornou uma lista de pedidos:", dados);
         setPedidos([]);
       }
     } catch (error) {
@@ -45,19 +38,11 @@ export default function PedidosPage() {
   async function carregarClientes() {
     try {
       const resposta = await fetch("http://localhost:3001/clientes");
-
-      if (!resposta.ok) {
-        throw new Error("Erro na resposta da API de clientes.");
-      }
-
       const dados = await resposta.json();
-
-      console.log("Clientes recebidos:", dados);
 
       if (Array.isArray(dados)) {
         setClientes(dados);
       } else {
-        console.error("A API não retornou uma lista de clientes:", dados);
         setClientes([]);
       }
     } catch (error) {
@@ -70,50 +55,30 @@ export default function PedidosPage() {
     let componenteAtivo = true;
 
     Promise.all([
-      fetch("http://localhost:3001/pedidos").then((resposta) => {
-        if (!resposta.ok) {
-          throw new Error("Erro na resposta da API de pedidos.");
-        }
-
-        return resposta.json();
-      }),
-
-      fetch("http://localhost:3001/clientes").then((resposta) => {
-        if (!resposta.ok) {
-          throw new Error("Erro na resposta da API de clientes.");
-        }
-
-        return resposta.json();
-      }),
+      fetch("http://localhost:3001/pedidos").then((resposta) =>
+        resposta.json(),
+      ),
+      fetch("http://localhost:3001/clientes").then((resposta) =>
+        resposta.json(),
+      ),
     ])
       .then(([dadosPedidos, dadosClientes]) => {
-        console.log("Pedidos recebidos no useEffect:", dadosPedidos);
-        console.log("Clientes recebidos no useEffect:", dadosClientes);
-
         if (componenteAtivo) {
           if (Array.isArray(dadosPedidos)) {
             setPedidos(dadosPedidos);
           } else {
-            console.error(
-              "A API não retornou uma lista de pedidos:",
-              dadosPedidos,
-            );
             setPedidos([]);
           }
 
           if (Array.isArray(dadosClientes)) {
             setClientes(dadosClientes);
           } else {
-            console.error(
-              "A API não retornou uma lista de clientes:",
-              dadosClientes,
-            );
             setClientes([]);
           }
         }
       })
       .catch((error) => {
-        console.error("Erro ao carregar dados no useEffect:", error);
+        console.error("Erro ao carregar dados:", error);
 
         if (componenteAtivo) {
           setPedidos([]);
@@ -126,41 +91,82 @@ export default function PedidosPage() {
     };
   }, []);
 
-  async function cadastrarPedido(e) {
+  async function salvarPedido(e) {
     e.preventDefault();
 
     try {
-      const resposta = await fetch("http://localhost:3001/pedidos", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+      if (pedidoEditando) {
+        const resposta = await fetch(
+          `http://localhost:3001/pedidos/${pedidoEditando}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(form),
+          },
+        );
 
-      if (!resposta.ok) {
-        throw new Error("Erro ao cadastrar pedido.");
+        if (!resposta.ok) {
+          throw new Error("Erro ao editar pedido.");
+        }
+
+        alert("Pedido atualizado com sucesso.");
+      } else {
+        const resposta = await fetch("http://localhost:3001/pedidos", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(form),
+        });
+
+        if (!resposta.ok) {
+          throw new Error("Erro ao cadastrar pedido.");
+        }
+
+        alert("Pedido cadastrado com sucesso.");
       }
 
-      setForm({
-        id_cliente: "",
-        descricao: "",
-        sabor: "",
-        tamanho: "",
-        quantidade: 1,
-        valor: "",
-        data_entrega: "",
-        status_pedido: "Pendente",
-      });
-
+      limparFormulario();
       carregarPedidos();
       carregarClientes();
     } catch (error) {
-      console.error("Erro ao cadastrar pedido:", error);
+      console.error("Erro ao salvar pedido:", error);
+      alert("Não foi possível salvar o pedido.");
     }
   }
 
+  function formatarDataParaInput(data) {
+    if (!data) {
+      return "";
+    }
+
+    return data.split("T")[0];
+  }
+
+  function editarPedido(pedido) {
+    setPedidoEditando(pedido.id_pedido);
+
+    setForm({
+      id_cliente: pedido.id_cliente || "",
+      descricao: pedido.descricao || "",
+      sabor: pedido.sabor || "",
+      tamanho: pedido.tamanho || "",
+      quantidade: pedido.quantidade || 1,
+      valor: pedido.valor || "",
+      data_entrega: formatarDataParaInput(pedido.data_entrega),
+      status_pedido: pedido.status_pedido || "Pendente",
+    });
+  }
+
   async function excluirPedido(id) {
+    const confirmar = confirm("Tem certeza que deseja excluir este pedido?");
+
+    if (!confirmar) {
+      return;
+    }
+
     try {
       const resposta = await fetch(`http://localhost:3001/pedidos/${id}`, {
         method: "DELETE",
@@ -170,11 +176,49 @@ export default function PedidosPage() {
         throw new Error("Erro ao excluir pedido.");
       }
 
+      alert("Pedido excluído com sucesso.");
+
       carregarPedidos();
     } catch (error) {
       console.error("Erro ao excluir pedido:", error);
       alert("Não foi possível excluir o pedido.");
     }
+  }
+
+  function limparFormulario() {
+    setPedidoEditando(null);
+
+    setForm({
+      id_cliente: "",
+      descricao: "",
+      sabor: "",
+      tamanho: "",
+      quantidade: 1,
+      valor: "",
+      data_entrega: "",
+      status_pedido: "Pendente",
+    });
+  }
+
+  function executarAcaoPedido(acao, pedido) {
+    if (acao === "editar") {
+      editarPedido(pedido);
+    }
+
+    if (acao === "excluir") {
+      excluirPedido(pedido.id_pedido);
+    }
+  }
+
+  function formatarValor(valor) {
+    if (!valor) {
+      return "R$ 0,00";
+    }
+
+    return Number(valor).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
   }
 
   return (
@@ -189,7 +233,7 @@ export default function PedidosPage() {
         </h1>
 
         <form
-          onSubmit={cadastrarPedido}
+          onSubmit={salvarPedido}
           className="bg-white rounded-xl shadow p-6 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4"
         >
           <select
@@ -274,8 +318,18 @@ export default function PedidosPage() {
             type="submit"
             className="md:col-span-2 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700"
           >
-            Cadastrar Pedido
+            {pedidoEditando ? "Salvar alterações" : "Cadastrar Pedido"}
           </button>
+
+          {pedidoEditando && (
+            <button
+              type="button"
+              onClick={limparFormulario}
+              className="md:col-span-2 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600"
+            >
+              Cancelar edição
+            </button>
+          )}
         </form>
 
         <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -302,16 +356,22 @@ export default function PedidosPage() {
                     <td className="p-3">{pedido.sabor}</td>
                     <td className="p-3">{pedido.tamanho}</td>
                     <td className="p-3">{pedido.quantidade}</td>
-                    <td className="p-3">R$ {pedido.valor}</td>
+                    <td className="p-3">{formatarValor(pedido.valor)}</td>
                     <td className="p-3">{pedido.status_pedido}</td>
                     <td className="p-3">
-                      <button
-                        type="button"
-                        onClick={() => excluirPedido(pedido.id_pedido)}
-                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                      <select
+                        value=""
+                        onChange={(e) =>
+                          executarAcaoPedido(e.target.value, pedido)
+                        }
+                        className="border rounded-lg px-3 py-2 bg-white"
                       >
-                        Excluir
-                      </button>
+                        <option value="" disabled>
+                          Ações
+                        </option>
+                        <option value="editar">Editar</option>
+                        <option value="excluir">Excluir</option>
+                      </select>
                     </td>
                   </tr>
                 ))

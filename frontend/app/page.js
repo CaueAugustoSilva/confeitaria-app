@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-pink-50 flex items-center justify-center p-8">
+    <main className="min-h-screen bg-fuchsia-500 flex items-center justify-center p-8 ">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-xl w-full text-center">
         <h1 className="text-3xl font-bold text-pink-700 mb-4">
           Sistema de Confeitaria

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState([]);
+  const [clienteEditando, setClienteEditando] = useState(null);
 
   const [form, setForm] = useState({
     nome: "",
@@ -16,19 +17,11 @@ export default function ClientesPage() {
   async function carregarClientes() {
     try {
       const resposta = await fetch("http://localhost:3001/clientes");
-
-      if (!resposta.ok) {
-        throw new Error("Erro na resposta da API de clientes.");
-      }
-
       const dados = await resposta.json();
-
-      console.log("Clientes recebidos:", dados);
 
       if (Array.isArray(dados)) {
         setClientes(dados);
       } else {
-        console.error("A API não retornou uma lista de clientes:", dados);
         setClientes([]);
       }
     } catch (error) {
@@ -41,27 +34,18 @@ export default function ClientesPage() {
     let componenteAtivo = true;
 
     fetch("http://localhost:3001/clientes")
-      .then((resposta) => {
-        if (!resposta.ok) {
-          throw new Error("Erro na resposta da API de clientes.");
-        }
-
-        return resposta.json();
-      })
+      .then((resposta) => resposta.json())
       .then((dados) => {
-        console.log("Clientes recebidos no useEffect:", dados);
-
         if (componenteAtivo) {
           if (Array.isArray(dados)) {
             setClientes(dados);
           } else {
-            console.error("A API não retornou uma lista de clientes:", dados);
             setClientes([]);
           }
         }
       })
       .catch((error) => {
-        console.error("Erro ao carregar clientes no useEffect:", error);
+        console.error("Erro ao carregar clientes:", error);
 
         if (componenteAtivo) {
           setClientes([]);
@@ -73,36 +57,69 @@ export default function ClientesPage() {
     };
   }, []);
 
-  async function cadastrarCliente(e) {
+  async function salvarCliente(e) {
     e.preventDefault();
 
     try {
-      const resposta = await fetch("http://localhost:3001/clientes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+      if (clienteEditando) {
+        const resposta = await fetch(
+          `http://localhost:3001/clientes/${clienteEditando}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(form),
+          },
+        );
 
-      if (!resposta.ok) {
-        throw new Error("Erro ao cadastrar cliente.");
+        if (!resposta.ok) {
+          throw new Error("Erro ao editar cliente.");
+        }
+
+        alert("Cliente atualizado com sucesso.");
+      } else {
+        const resposta = await fetch("http://localhost:3001/clientes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(form),
+        });
+
+        if (!resposta.ok) {
+          throw new Error("Erro ao cadastrar cliente.");
+        }
+
+        alert("Cliente cadastrado com sucesso.");
       }
 
-      setForm({
-        nome: "",
-        telefone: "",
-        email: "",
-        endereco: "",
-      });
-
+      limparFormulario();
       carregarClientes();
     } catch (error) {
-      console.error("Erro ao cadastrar cliente:", error);
+      console.error("Erro ao salvar cliente:", error);
+      alert("Não foi possível salvar o cliente.");
     }
   }
 
+  function editarCliente(cliente) {
+    setClienteEditando(cliente.id_cliente);
+
+    setForm({
+      nome: cliente.nome || "",
+      telefone: cliente.telefone || "",
+      email: cliente.email || "",
+      endereco: cliente.endereco || "",
+    });
+  }
+
   async function excluirCliente(id) {
+    const confirmar = confirm("Tem certeza que deseja excluir este cliente?");
+
+    if (!confirmar) {
+      return;
+    }
+
     try {
       const resposta = await fetch(`http://localhost:3001/clientes/${id}`, {
         method: "DELETE",
@@ -112,12 +129,35 @@ export default function ClientesPage() {
         throw new Error("Erro ao excluir cliente.");
       }
 
+      alert("Cliente excluído com sucesso.");
+
       carregarClientes();
     } catch (error) {
       console.error("Erro ao excluir cliente:", error);
       alert(
         "Não foi possível excluir o cliente. Verifique se ele possui pedidos cadastrados.",
       );
+    }
+  }
+
+  function limparFormulario() {
+    setClienteEditando(null);
+
+    setForm({
+      nome: "",
+      telefone: "",
+      email: "",
+      endereco: "",
+    });
+  }
+
+  function executarAcaoCliente(acao, cliente) {
+    if (acao === "editar") {
+      editarCliente(cliente);
+    }
+
+    if (acao === "excluir") {
+      excluirCliente(cliente.id_cliente);
     }
   }
 
@@ -131,7 +171,7 @@ export default function ClientesPage() {
         <h1 className="text-3xl font-bold text-pink-700 mt-4 mb-6">Clientes</h1>
 
         <form
-          onSubmit={cadastrarCliente}
+          onSubmit={salvarCliente}
           className="bg-white rounded-xl shadow p-6 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4"
         >
           <input
@@ -168,8 +208,18 @@ export default function ClientesPage() {
             type="submit"
             className="md:col-span-2 bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700"
           >
-            Cadastrar Cliente
+            {clienteEditando ? "Salvar alterações" : "Cadastrar Cliente"}
           </button>
+
+          {clienteEditando && (
+            <button
+              type="button"
+              onClick={limparFormulario}
+              className="md:col-span-2 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600"
+            >
+              Cancelar edição
+            </button>
+          )}
         </form>
 
         <div className="bg-white rounded-xl shadow overflow-x-auto">
@@ -193,13 +243,19 @@ export default function ClientesPage() {
                     <td className="p-3">{cliente.email}</td>
                     <td className="p-3">{cliente.endereco}</td>
                     <td className="p-3">
-                      <button
-                        type="button"
-                        onClick={() => excluirCliente(cliente.id_cliente)}
-                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                      <select
+                        value=""
+                        onChange={(e) =>
+                          executarAcaoCliente(e.target.value, cliente)
+                        }
+                        className="border rounded-lg px-3 py-2 bg-white"
                       >
-                        Excluir
-                      </button>
+                        <option value="" disabled>
+                          Ações
+                        </option>
+                        <option value="editar">Editar</option>
+                        <option value="excluir">Excluir</option>
+                      </select>
                     </td>
                   </tr>
                 ))
